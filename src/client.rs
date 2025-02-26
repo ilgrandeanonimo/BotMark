@@ -20,7 +20,7 @@ use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicU32;
 use std::sync::{Arc, atomic::AtomicBool};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::{
     net::{
@@ -161,7 +161,7 @@ impl Client {
             if self
                 .message_spam_cooldown
                 .fetch_sub(1, std::sync::atomic::Ordering::Relaxed)
-                <= 0
+                == 0
             {
                 self.message_spam_cooldown
                     .store(spam_message_delay, std::sync::atomic::Ordering::Relaxed);
