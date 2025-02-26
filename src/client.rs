@@ -10,7 +10,7 @@ use pumpkin_protocol::codec::var_int::VarInt;
 use pumpkin_protocol::server::config::{SAcknowledgeFinishConfig, SKnownPacks};
 use pumpkin_protocol::server::handshake::SHandShake;
 use pumpkin_protocol::server::login::{SLoginAcknowledged, SLoginStart};
-use pumpkin_protocol::server::play::{SConfirmTeleport, SKeepAlive};
+use pumpkin_protocol::server::play::{SChatMessage, SConfirmTeleport, SKeepAlive};
 use pumpkin_protocol::{CURRENT_MC_PROTOCOL, RawPacket, ServerPacket};
 use pumpkin_protocol::{
     ClientPacket, CompressionLevel, CompressionThreshold, ConnectionState,
@@ -18,7 +18,9 @@ use pumpkin_protocol::{
 };
 use std::collections::VecDeque;
 use std::net::SocketAddr;
+use std::sync::atomic::AtomicU32;
 use std::sync::{Arc, atomic::AtomicBool};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::{
     net::{
@@ -42,6 +44,8 @@ pub struct Client {
     pub connection_reader: Mutex<OwnedReadHalf>,
     pub connection_writer: Mutex<OwnedWriteHalf>,
     pub client_packets_queue: Arc<Mutex<VecDeque<RawPacket>>>,
+
+    message_spam_cooldown: AtomicU32,
 }
 
 impl Client {
@@ -55,6 +59,7 @@ impl Client {
             connection_reader: Mutex::new(connection_reader),
             connection_writer: Mutex::new(connection_writer),
             client_packets_queue: Arc::new(Mutex::new(VecDeque::new())),
+            message_spam_cooldown: AtomicU32::new(1),
         }
     }
 
@@ -147,6 +152,40 @@ impl Client {
         }
     }
 
+    // TODO: make this less ugly ig
+    pub async fn tick(&self, spam_message: Arc<Option<String>>, spam_message_delay: u32) {
+        if self.connection_state.load() != ConnectionState::Play {
+            return;
+        }
+        if let Some(spam_message) = spam_message.as_ref() {
+            if self
+                .message_spam_cooldown
+                .fetch_sub(1, std::sync::atomic::Ordering::Relaxed)
+                <= 0
+            {
+                self.message_spam_cooldown
+                    .store(spam_message_delay, std::sync::atomic::Ordering::Relaxed);
+                self.send_message(spam_message.clone()).await
+            }
+        }
+    }
+
+    pub async fn send_message(&self, message: String) {
+        let start = SystemTime::now();
+        let since_the_epoch = start
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+        self.send_packet(&SChatMessage::new(
+            message,
+            since_the_epoch.as_millis() as i64,
+            rand::random(),
+            None,
+            VarInt(1),
+            vec![0; 20],
+        ))
+        .await;
+    }
+
     /// Sends a clientbound packet to the connected client.
     ///
     /// # Arguments
@@ -171,6 +210,7 @@ impl Client {
     }
 
     pub async fn join_server(&self, address: SocketAddr, name: String) {
+        dbg!(address.ip().to_string());
         self.send_packet(&SHandShake {
             protocol_version: VarInt(CURRENT_MC_PROTOCOL.get() as i32),
             server_address: address.ip().to_string(),
