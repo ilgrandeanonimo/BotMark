@@ -209,11 +209,11 @@ impl Client {
         }
     }
 
-    pub async fn join_server(&self, address: SocketAddr, name: String) {
+    pub async fn join_server(&self, address: SocketAddr, name: String, server_address: &str) {
         dbg!(address.ip().to_string());
         self.send_packet(&SHandShake {
             protocol_version: VarInt(CURRENT_MC_PROTOCOL.get() as i32),
-            server_address: address.ip().to_string(),
+            server_address: server_address.to_string(),
             server_port: address.port(),
             next_state: pumpkin_protocol::ConnectionState::Login,
         })

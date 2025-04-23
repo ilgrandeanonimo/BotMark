@@ -2,7 +2,7 @@ use std::{net::SocketAddr, sync::Arc, thread::sleep, time::Duration};
 
 use clap::Parser;
 use client::Client;
-use tokio::net::TcpStream;
+use tokio::net::{TcpStream, lookup_host};
 
 mod client;
 
@@ -25,7 +25,17 @@ pub struct Args {
 async fn main() {
     simple_logger::init_with_level(log::Level::Info).unwrap();
     let args = Args::parse();
-    let address = args.ip.parse::<SocketAddr>().unwrap();
+    let (server_address, _) = args.ip.split_once(':').unwrap();
+    let address = match args.ip.parse::<SocketAddr>().ok() {
+        Some(address) => address,
+        None => match lookup_host(args.ip.clone()).await {
+            Ok(mut addrs) => addrs.next().unwrap(),
+            Err(err) => {
+                eprintln!("DNS Error: {}", err);
+                return;
+            }
+        },
+    };
     log::info!(
         "{} Bots will Join {} with a delay of {}ms",
         args.count,
@@ -41,7 +51,9 @@ async fn main() {
         let client = Client::new(stream);
         let message = Arc::new(args.spam_message.clone());
 
-        client.join_server(address, format!("BOT_{}", i)).await;
+        client
+            .join_server(address, format!("BOT_{}", i), server_address)
+            .await;
         let join_handle = tokio::spawn(async move {
             loop {
                 if !client.poll().await {
