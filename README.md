@@ -35,10 +35,10 @@ Here's a detailed breakdown of all available command-line arguments:
   - The delay (in milliseconds) between each bot connection.
   - Example: `--delay 100` (100 milliseconds delay)
   
-- **`--spam_message "<message>"` (Optional):**
-  - Will send a Chat message with the specefied `spam_message_delay`.
-  - Example: `--spam_message "Hello, I'm a Robot"`
+- **`--spam-message "<message>"` (Optional):**
+  - Will send a Chat message with the specefied `spam-message-delay`.
+  - Example: `--spam-message "Hello, I'm a Robot"`
 
-- **`--spam_message_delay <delay>` (Optional, Default: `210`):**
+- **`--spam-message-delay <delay>` (Optional, Default: `210`):**
   - The delay (in milliseconds) between spam message.
-  - Example: `--spam_message_delay 100` (100 milliseconds delay)
+  - Example: `--spam-message-delay 100` (100 milliseconds delay)
